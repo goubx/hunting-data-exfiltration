@@ -1,0 +1,41 @@
+// ============================================================
+// Hunting Insider Data Exfiltration on a Corporate Endpoint
+// Platform: Microsoft Defender for Endpoint (Advanced Hunting)
+// Note: hostname sanitized. Replace placeholder with your real
+//       value when running.
+// ============================================================
+
+
+// 1. Find archive (.zip) file activity on the device
+DeviceFileEvents
+| where DeviceName == "WIN-TARGET-01"
+| where FileName endswith ".zip"
+| order by Timestamp desc
+
+
+// 2. Pivot to process events around a single archive creation.
+//    Reveals the script, the silent 7-Zip install, and the archiving.
+let VMName = "WIN-TARGET-01";
+let specificTime = datetime(2026-06-13T15:43:03.8113194Z);
+DeviceProcessEvents
+| where Timestamp between ((specificTime - 2m) .. (specificTime + 2m))
+| where DeviceName == VMName
+| order by Timestamp desc
+| project Timestamp, DeviceName, ActionType, FileName, ProcessCommandLine
+
+
+// 3. Check the network for any exfiltration around the same window
+let VMName = "WIN-TARGET-01";
+let specificTime = datetime(2026-06-13T15:43:03.8113194Z);
+DeviceNetworkEvents
+| where Timestamp between ((specificTime - 4m) .. (specificTime + 4m))
+| where DeviceName == VMName
+| order by Timestamp desc
+
+
+// Optional: broad detection for common archive tools by process name
+let archive_applications = dynamic(["winrar.exe", "7z.exe", "winzip32.exe", "peazip.exe", "Bandizip.exe", "UniExtract.exe", "POWERARC.EXE", "IZArc.exe", "AshampooZIP.exe", "FreeArc.exe"]);
+DeviceProcessEvents
+| where DeviceName == "WIN-TARGET-01"
+| where FileName has_any(archive_applications)
+| order by Timestamp desc
